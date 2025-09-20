@@ -7,8 +7,8 @@
     "dev": "vite",
     "lint": "eslint .",
     "preview": "vite preview",
-    "build": "tsc -b && node scripts/build-apps.mjs",
-    "deploy": "npm run build && clasp push"
+    "build": "tsc -b && node scripts/build-apps.mjs -- --changed",
+    "deploy": "npm run build -- --changed && clasp push"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
