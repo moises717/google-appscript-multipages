@@ -1,4 +1,3 @@
-// build-apps.mjs (versión robusta)
 import { build as viteBuild } from 'vite';
 import { viteSingleFile } from 'vite-plugin-singlefile';
 import { resolve } from 'path';
