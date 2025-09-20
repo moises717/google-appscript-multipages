@@ -1,4 +1,4 @@
-Plantilla Google Apps Script (React + Vite)
+# Plantilla Google Apps Script (React + Vite)
 
 Proyecto para crear aplicaciones multipágina sobre Google Apps Script (GAS) utilizando React, TypeScript y Vite. El repositorio compila la parte de servidor (Apps Script) y el cliente (React) y produce artefactos listos para desplegar con `clasp`.
 
