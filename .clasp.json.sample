@@ -1,5 +1,5 @@
 {
-  "scriptId": "your id here",
+  "scriptId": "your scriptId here",
   "rootDir": "dist",
   "scriptExtensions": [
     ".js",

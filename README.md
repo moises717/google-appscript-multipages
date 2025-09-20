@@ -4,7 +4,7 @@ Proyecto para crear aplicaciones multipágina sobre Google Apps Script (GAS) uti
 
 ## 📌 Resumen
 
-- Cliente: React + Vite + Tailwind + Radix UI (páginas en `src/client/pages/*`).
+- Cliente: React + Vite + Tailwind + Shadcn (páginas en `src/client/pages/*`).
 - Servidor: TypeScript compilado y transformado para Apps Script (salida en `dist/` o `server/` según configuración).
 - Build: `node scripts/build-apps.mjs` genera los HTML "single-file" por página y el `Code.js` para GAS.
 - Deploy: con `clasp` (ver sección de despliegue).
