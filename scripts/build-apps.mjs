@@ -11,7 +11,7 @@ console.log('Project root:', PROJECT_ROOT);
 const SERVER_DIR = resolve(PROJECT_ROOT, 'dist'); // carpeta de destino para Apps Script
 const TEMP_ROOT = resolve(PROJECT_ROOT, '.vite_tmp'); // temp builds
 
-// --- Discover entries dynamically: scan src/client/pages for folders that contain index.html
+// --- Descubre entradas dinámicamente: escanea src/client/pages en busca de carpetas que contengan index.html
 async function discoverEntries() {
 	const pagesRoot = resolve(PROJECT_ROOT, 'src/client/pages');
 	const list = [];
@@ -22,18 +22,15 @@ async function discoverEntries() {
 			const name = d.name;
 			const indexPath = resolve(pagesRoot, name, 'index.html');
 			try {
-				// fs.access via promises doesn't exist in fs/promises on older Node, use stat via promises
 				await fs.stat(indexPath);
 				list.push({ name, html: indexPath });
 			} catch (e) {
-				// no index.html — still consider the folder if it contains an App.tsx (we'll use shared template)
 				try {
 					const appTsx = resolve(pagesRoot, name, 'App.tsx');
 					await fs.stat(appTsx);
-					// add entry without html (will use template)
+					// No hay index.html, pero sí App.tsx — lo permitimos y usaremos una plantilla compartida
 					list.push({ name, html: null });
 				} catch (e2) {
-					// no App.tsx either — skip
 					continue;
 				}
 			}
@@ -41,7 +38,7 @@ async function discoverEntries() {
 	} catch (err) {
 		console.error('Error discovering pages in', pagesRoot, err);
 	}
-	// sort alphabetically by name for deterministic build order
+	// ordenar alfabéticamente por nombre para un orden de compilación determinista
 	return list.sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -84,10 +81,8 @@ async function buildServer() {
 
 	try {
 		let content = await fs.readFile(tmp, 'utf-8');
-		// Strip IIFE wrapper and exports to get plain functions for Apps Script
-		const match = content.match(
-			/^\(function\s*\(exports\)\s*\{\s*('use strict'|"use strict");?([\s\S]*)\}\)\(this\.globalThis/
-		);
+		// Elimina el envoltorio IIFE y las exportaciones para obtener solo funciones planas para Apps Script
+		const match = content.match(/^\(function\s*\(exports\)\s*\{\s*('use strict'|"use strict");?([\s\S]*)\}\)\(this\.globalThis/);
 
 		if (match && match[2]) {
 			let innerContent = match[2];
@@ -112,7 +107,7 @@ async function buildServer() {
 	}
 }
 
-// Genera src/server/doGet.generated.ts con condiciones por página
+// Genera src/server/doGet.generated.ts con condiciones para cada página
 async function writeDoGetGenerated(pageNames) {
 	const serverSrcDir = resolve(PROJECT_ROOT, 'src', 'server');
 	try {
@@ -165,11 +160,9 @@ async function buildClientSingleFile(entry) {
 	// Crear carpeta temporal para esta página y generar un main.tsx que importe el App de la página
 	try {
 		await fs.mkdir(tempPageDir, { recursive: true });
-		// Si existe una plantilla compartida en src/client/template.html la usamos
 		const sharedTemplatePath = resolve(PROJECT_ROOT, 'src/client/template.html');
 		let indexContent;
 		if (!entry.html) {
-			// no hay index.html por página -> debemos usar la plantilla compartida
 			if (!existsSync(sharedTemplatePath)) {
 				console.error(`No index.html for page "${entry.name}" and no shared template at ${sharedTemplatePath}.`);
 				process.exit(1);
@@ -178,10 +171,9 @@ async function buildClientSingleFile(entry) {
 			indexContent = indexContent.replace(/{{PAGE_NAME}}/g, entry.name);
 			indexContent = indexContent.replace(/{{TITLE}}/g, entry.name);
 		} else {
-			// copiar index.html de la página al temp (manteniendo script src="./main.tsx")
 			indexContent = await fs.readFile(entry.html, 'utf-8');
 		}
-		// escribimos el index temporal
+
 		await fs.writeFile(resolve(tempPageDir, 'index.html'), indexContent, 'utf-8');
 		// generar main.tsx dinámico que use el alias '@' para importar App y CSS
 		console.log(entry.name);
@@ -192,8 +184,7 @@ async function buildClientSingleFile(entry) {
 		process.exit(1);
 	}
 
-	// configuración por entrada: heredamos vite.config.js (alias/plugins) usando configFile,
-	// pero también forzamos outDir e input al index.html temporal
+	// configuración por entrada: heredamos vite.config.js (alias/plugins) usando configFile, pero también forzamos outDir e input al index.html temporal
 	const configForEntry = {
 		plugins: [viteSingleFile({ useRecommendedBuildConfig: true })],
 		build: {
@@ -215,10 +206,8 @@ async function buildClientSingleFile(entry) {
 		process.exit(1);
 	}
 
-	// ahora buscamos cualquier .html generado dentro de outDir (no asumimos index.html)
 	const generatedIndex = await findHtmlFile(outDir);
 	if (!generatedIndex) {
-		// listamos contenidos para debug
 		console.error(`\n⚠️ No se encontró ningún .html en ${outDir} después del build.`);
 		try {
 			const list = await fs.readdir(outDir);
@@ -252,13 +241,12 @@ async function buildClientSingleFile(entry) {
 
 	await ensureServerDir();
 
-	// Discover pages first so we can generate server helpers
 	const entries = await discoverEntries();
-	console.log('Discovered pages:', entries.map(e => e.name).join(', ') || '(none)');
+	console.log('Discovered pages:', entries.map((e) => e.name).join(', ') || '(none)');
 
 	// Generate pages manifest (src/server/pages.generated.ts)
 	try {
-		const pageNames = entries.map(e => e.name);
+		const pageNames = entries.map((e) => e.name);
 		const serverSrcDir = resolve(PROJECT_ROOT, 'src', 'server');
 		await fs.mkdir(serverSrcDir, { recursive: true });
 		const pagesContent = `// GENERATED by scripts/build-apps.mjs - do not edit\nexport const PAGES = ${JSON.stringify(
@@ -275,10 +263,8 @@ async function buildClientSingleFile(entry) {
 		process.exit(1);
 	}
 
-	// 1) Build server code now (includes generated manifest and doGet)
 	await buildServer();
 
-	// 2) Build each client single-file (one by one)
 	for (const entry of entries) {
 		if (entry.html) {
 			if (!existsSync(entry.html)) {
@@ -291,7 +277,7 @@ async function buildClientSingleFile(entry) {
 		await buildClientSingleFile(entry);
 	}
 
-	// 3) Copy appsscript.json (si tienes una plantilla local)
+	// 3) Copiar appsscript.json (si tienes una plantilla local)
 	const appsscriptSrc = resolve(PROJECT_ROOT, 'appsscript.json');
 	const appsscriptDest = resolve(SERVER_DIR, 'appsscript.json');
 	if (existsSync(appsscriptSrc)) {
@@ -307,6 +293,6 @@ async function buildClientSingleFile(entry) {
 
 	console.log('\nBuild finished. Result files in /server (list):');
 	const files = await fs.readdir(SERVER_DIR);
-	files.forEach(f => console.log('  -', f));
+	files.forEach((f) => console.log('  -', f));
 	console.log('\nAhora puedes ejecutar: clasp push (desde la carpeta server) o configurar tu workflow.');
 })();
