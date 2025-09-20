@@ -1,6 +1,7 @@
 import { build as viteBuild } from 'vite';
 import { viteSingleFile } from 'vite-plugin-singlefile';
 import { resolve } from 'path';
+import { createHash } from 'node:crypto';
 import fs from 'fs/promises';
 import { existsSync } from 'fs';
 import { rmSync } from 'fs';
@@ -9,6 +10,21 @@ const PROJECT_ROOT = process.cwd();
 console.log('Project root:', PROJECT_ROOT);
 const SERVER_DIR = resolve(PROJECT_ROOT, 'dist'); // carpeta de destino para Apps Script
 const TEMP_ROOT = resolve(PROJECT_ROOT, '.vite_tmp'); // temp builds
+const CACHE_FILE = resolve(SERVER_DIR, '.build-cache.json');
+
+// --- CLI flags
+// --pages=home,dashboard   -> compila solo esas páginas
+// --changed                -> compila solo páginas (y opcionalmente servidor) que hayan cambiado
+// --skip-server            -> no compila el servidor
+const ARGS = process.argv.slice(2);
+const getArgVal = (key) => {
+	const prefix = key + '=';
+	const found = ARGS.find((a) => a.startsWith(prefix));
+	return found ? found.slice(prefix.length) : undefined;
+};
+const PAGES_ARG = getArgVal('--pages');
+const ONLY_CHANGED = ARGS.includes('--changed');
+const SKIP_SERVER = ARGS.includes('--skip-server');
 
 // --- Descubre entradas dinámicamente: escanea src/client/pages en busca de carpetas que contengan index.html
 async function discoverEntries() {
@@ -71,7 +87,7 @@ async function buildServer() {
 				},
 			},
 		},
-		configFile: resolve(PROJECT_ROOT, 'vite.config.js'),
+		configFile: resolve(PROJECT_ROOT, 'vite.config.ts'),
 	});
 
 	const tmp = resolve(PROJECT_ROOT, 'temp_server_build', 'Code.js');
@@ -91,7 +107,7 @@ async function buildServer() {
 				.trim();
 
 			await fs.writeFile(dest, functionsOnly, 'utf-8');
-			console.log(`  -> server/Code.js created (transformed for Apps Script)`);
+			console.log(`  -> dist/Code.js created (transformed for Apps Script)`);
 		} else {
 			console.warn('Could not transform server code, writing original. It may not work in Apps Script.');
 			await fs.copyFile(tmp, dest);
@@ -175,6 +191,7 @@ async function buildClientSingleFile(entry) {
 
 		await fs.writeFile(resolve(tempPageDir, 'index.html'), indexContent, 'utf-8');
 		// generar main.tsx dinámico que use el alias '@' para importar App y CSS
+		// Debug: nombre de página
 		console.log(entry.name);
 		const genMain = `import { StrictMode } from 'react';\nimport { createRoot } from 'react-dom/client';\nimport '@/client/index.css';\nimport App from '@/client/pages/${entry.name}/App';\n\ncreateRoot(document.getElementById('root')!).render(\n  <StrictMode>\n    <App />\n  </StrictMode>,\n);\n`;
 		await fs.writeFile(resolve(tempPageDir, 'main.tsx'), genMain, 'utf-8');
@@ -195,7 +212,7 @@ async function buildClientSingleFile(entry) {
 			minify: true,
 			sourcemap: false,
 		},
-		configFile: resolve(PROJECT_ROOT, 'vite.config.js'),
+		configFile: resolve(PROJECT_ROOT, 'vite.config.ts'),
 	};
 
 	try {
@@ -224,7 +241,7 @@ async function buildClientSingleFile(entry) {
 		const content = await fs.readFile(generatedIndex, 'utf-8');
 		await ensureServerDir();
 		await fs.writeFile(targetHtml, content, 'utf-8');
-		console.log(`  -> server/${entry.name}.html written (desde ${generatedIndex})`);
+		console.log(`  -> dist/${entry.name}.html written (desde ${generatedIndex})`);
 	} catch (err) {
 		console.error(`Error writing server/${entry.name}.html:`, err);
 		process.exit(1);
@@ -235,12 +252,82 @@ async function buildClientSingleFile(entry) {
 	}
 }
 
+// Utilidades de hashing para compilación incremental
+async function walkFiles(dir) {
+	const out = [];
+	try {
+		const entries = await fs.readdir(dir, { withFileTypes: true });
+		for (const e of entries) {
+			const full = resolve(dir, e.name);
+			if (e.isDirectory()) {
+				const nested = await walkFiles(full);
+				out.push(...nested);
+			} else {
+				out.push(full);
+			}
+		}
+	} catch {}
+	return out;
+}
+
+async function hashFiles(files) {
+	const h = createHash('sha1');
+	for (const f of files.sort()) {
+		try {
+			const buf = await fs.readFile(f);
+			h.update(f);
+			h.update(buf);
+		} catch {}
+	}
+	return h.digest('hex');
+}
+
+async function computePageHash(pageName) {
+	const pageDir = resolve(PROJECT_ROOT, 'src/client/pages', pageName);
+	const files = await walkFiles(pageDir);
+	// Considera archivos típicos
+	const filtered = files.filter((f) => /\.(tsx?|jsx?|html|css|json)$/.test(f));
+	return await hashFiles(filtered);
+}
+
+async function computeServerHash() {
+	const serverDir = resolve(PROJECT_ROOT, 'src/server');
+	const files = await walkFiles(serverDir);
+	const filtered = files.filter((f) => /\.(ts|js|json)$/.test(f));
+	return await hashFiles(filtered);
+}
+
+async function loadCache() {
+	try {
+		const txt = await fs.readFile(CACHE_FILE, 'utf-8');
+		return JSON.parse(txt);
+	} catch {
+		return { pages: {}, server: '' };
+	}
+}
+
+async function saveCache(cache) {
+	try {
+		await ensureServerDir();
+		await fs.writeFile(CACHE_FILE, JSON.stringify(cache, null, 2), 'utf-8');
+	} catch {}
+}
+
 (async () => {
 	console.log('Starting Apps Script build (server + single-file clients)...');
 
 	await ensureServerDir();
 
-	const entries = await discoverEntries();
+	let entries = await discoverEntries();
+	// Filtra por --pages si se pasa
+	if (PAGES_ARG) {
+		const allow = new Set(
+			PAGES_ARG.split(',')
+				.map((s) => s.trim())
+				.filter(Boolean),
+		);
+		entries = entries.filter((e) => allow.has(e.name));
+	}
 	console.log('Discovered pages:', entries.map((e) => e.name).join(', ') || '(none)');
 
 	// Generate pages manifest (src/server/pages.generated.ts)
@@ -262,8 +349,23 @@ async function buildClientSingleFile(entry) {
 		process.exit(1);
 	}
 
-	await buildServer();
+	// Build server con cache si no se pasa --skip-server
+	const cache = await loadCache();
+	if (!SKIP_SERVER) {
+		const newServerHash = await computeServerHash();
+		const hasServerChanged = cache.server !== newServerHash;
+		if (!ONLY_CHANGED || hasServerChanged) {
+			await buildServer();
+			cache.server = newServerHash;
+		} else {
+			console.log('Skipping server build (no changes detected)');
+		}
+	} else {
+		console.log('Skipping server build due to --skip-server flag');
+	}
 
+	// Determinar qué páginas compilar
+	const pagesToBuild = [];
 	for (const entry of entries) {
 		if (entry.html) {
 			if (!existsSync(entry.html)) {
@@ -273,7 +375,27 @@ async function buildClientSingleFile(entry) {
 		} else {
 			console.log(`Note: page "${entry.name}" has no index.html; using shared template (if present).`);
 		}
-		await buildClientSingleFile(entry);
+		let shouldBuild = true;
+		if (ONLY_CHANGED) {
+			const newHash = await computePageHash(entry.name);
+			const prevHash = cache.pages?.[entry.name];
+			if (prevHash && prevHash === newHash && existsSync(resolve(SERVER_DIR, `${entry.name}.html`))) {
+				shouldBuild = false;
+			} else {
+				// registrar el nuevo hash antes o después
+				cache.pages = cache.pages || {};
+				cache.pages[entry.name] = newHash;
+			}
+		}
+		if (shouldBuild) pagesToBuild.push(entry);
+	}
+
+	if (pagesToBuild.length === 0) {
+		console.log('No pages to build (either filtered by --pages or unchanged with --changed).');
+	} else {
+		for (const entry of pagesToBuild) {
+			await buildClientSingleFile(entry);
+		}
 	}
 
 	// 3) Copiar appsscript.json (si tienes una plantilla local)
@@ -290,8 +412,11 @@ async function buildClientSingleFile(entry) {
 		rmSync(TEMP_ROOT, { recursive: true, force: true });
 	} catch (e) {}
 
-	console.log('\nBuild finished. Result files in /server (list):');
+	// Guardar cache
+	await saveCache(cache);
+
+	console.log('\nBuild finished. Result files in /dist (list):');
 	const files = await fs.readdir(SERVER_DIR);
 	files.forEach((f) => console.log('  -', f));
-	console.log('\nAhora puedes ejecutar: clasp push (desde la carpeta server) o configurar tu workflow.');
+	console.log('\nAhora puedes ejecutar: clasp push (desde la carpeta dist) o configurar tu workflow.');
 })();
