@@ -1,146 +1,71 @@
-# React + TypeScript + Vite
+# MisFinanzas — Plantilla Google Apps Script (React + Vite)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Proyecto para crear aplicaciones multipágina sobre Google Apps Script (GAS) utilizando React, TypeScript y Vite. El repositorio compila la parte de servidor (Apps Script) y el cliente (React) y produce artefactos listos para desplegar con `clasp`.
 
-Currently, two official plugins are available:
+## 📌 Resumen
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- Cliente: React + Vite + Tailwind + Radix UI (páginas en `src/client/pages/*`).
+- Servidor: TypeScript compilado y transformado para Apps Script (salida en `dist/` o `server/` según configuración).
+- Build: `node scripts/build-apps.mjs` genera los HTML "single-file" por página y el `Code.js` para GAS.
+- Deploy: con `clasp` (ver sección de despliegue).
 
-## Expanding the ESLint configuration
+## 🚀 Características principales
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- Generación automática del código servidor adaptado a Apps Script (`Code.js`).
+- Soporte de múltiples páginas; cada página se empaqueta como un HTML independiente y se coloca en `dist/` o `server/` según el build.
+- Generación dinámica de `doGet` y un manifiesto de páginas (`src/server/pages.generated.ts`, `src/server/doGet.generated.ts`).
+- Flujo de build y deploy integrado: `npm run build` y opciones para `clasp push`.
 
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## 📂 Estructura del proyecto (resumen)
 
 ```
-MisFinanzas
-├─ .clasp.json
-├─ .eslintrc.json
-├─ appsscript.json
-├─ build-apps.mjs
-├─ components.json
-├─ eslint.config.js
-├─ package-lock.json
-├─ package.json
-├─ public
-│  └─ vite.svg
-├─ README.md
-├─ src
-│  ├─ client
-│  │  ├─ assets
-│  │  │  └─ react.svg
-│  │  ├─ components
-│  │  │  ├─ app-sidebar.tsx
-│  │  │  ├─ chart-area-interactive.tsx
-│  │  │  ├─ data-table.tsx
-│  │  │  ├─ nav-documents.tsx
-│  │  │  ├─ nav-main.tsx
-│  │  │  ├─ nav-secondary.tsx
-│  │  │  ├─ nav-user.tsx
-│  │  │  ├─ section-cards.tsx
-│  │  │  ├─ site-header.tsx
-│  │  │  └─ ui
-│  │  │     ├─ avatar.tsx
-│  │  │     ├─ badge.tsx
-│  │  │     ├─ breadcrumb.tsx
-│  │  │     ├─ button.tsx
-│  │  │     ├─ card.tsx
-│  │  │     ├─ chart.tsx
-│  │  │     ├─ checkbox.tsx
-│  │  │     ├─ drawer.tsx
-│  │  │     ├─ dropdown-menu.tsx
-│  │  │     ├─ input.tsx
-│  │  │     ├─ label.tsx
-│  │  │     ├─ select.tsx
-│  │  │     ├─ separator.tsx
-│  │  │     ├─ sheet.tsx
-│  │  │     ├─ sidebar.tsx
-│  │  │     ├─ skeleton.tsx
-│  │  │     ├─ sonner.tsx
-│  │  │     ├─ table.tsx
-│  │  │     ├─ tabs.tsx
-│  │  │     ├─ toggle-group.tsx
-│  │  │     ├─ toggle.tsx
-│  │  │     └─ tooltip.tsx
-│  │  ├─ data.json
-│  │  ├─ hooks
-│  │  │  └─ use-mobile.ts
-│  │  ├─ index.css
-│  │  ├─ lib
-│  │  │  ├─ client.ts
-│  │  │  └─ utils.ts
-│  │  ├─ pages
-│  │  │  └─ dashboard
-│  │  │     ├─ App.tsx
-│  │  │     ├─ index.css
-│  │  │     ├─ index.html
-│  │  │     └─ main.tsx
-│  │  ├─ types
-│  │  │  └─ index.ts
-│  │  └─ vite-env.d.ts
-│  ├─ lib
-│  │  └─ utils.ts
-│  └─ server
-│     └─ index.ts
-├─ tsconfig.app.json
-├─ tsconfig.json
-├─ tsconfig.node.json
-└─ vite.config.ts
+.
+├─ appsscript.json             # Opcional: manifest de Apps Script que se copia al build
+├─ scripts/
+│  └─ build-apps.mjs          # Script que compila servidor + cliente en artefactos para GAS
+├─ src/
+│  ├─ client/                 # Código React (páginas, componentes, estilos)
+│  │  └─ pages/               # Cada carpeta representa una página (ej. home, dashboard)
+│  └─ server/                 # Utilidades y stubs para Apps Script (generados durante build)
+├─ dist/                      # Salida del build (Code.js, <page>.html, appsscript.json)
+├─ package.json               # Scripts y dependencias
+```
+
+> Nota: durante el build los artefactos finales se colocan en `dist/` o `server/` (el script `scripts/build-apps.mjs` gestiona el destino).
+
+## 📋 Scripts importantes (en `package.json`)
+
+- `npm run dev` — Ejecuta Vite en modo desarrollo para el cliente.
+- `npm run build` — Compila TypeScript y ejecuta `scripts/build-apps.mjs` (genera `dist/`).
+- `npm run lint` — Ejecuta ESLint sobre el proyecto.
+- `npm run preview` — Previsualiza el build con `vite preview`.
+- `npm run deploy` — Ejecuta `npm run build` y (según configuración) lanza `clasp push` (ver despliegue abajo).
 
 ```
+npm install
+npm run build
+```
+
+## 🔧 Despliegue a Google Apps Script (clasp)
+
+1. Instala y autentica `clasp` si no lo tienes:
+
+```
+npm i -g @google/clasp
+clasp login
+```
+
+2. Construye el proyecto:
+
+```
+npm run build
+```
+
+3. Desde la carpeta de salida (por defecto `dist/` o `server/`) ejecuta `clasp push`:
+
+```
+cd dist
+clasp push
+```
+
+Nota: el script `npm run deploy` del `package.json` puede lanzar `clasp push` tras el build, pero dependiendo de tu configuración quizá necesites hacer `cd dist && clasp push` manualmente.
