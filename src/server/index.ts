@@ -1,3 +1,5 @@
 // Re-export the generated doGet implementation. The file is created by the build script.
-export { doGet } from './doGet.generated.ts';
-export { sheetToJsonFromName } from './sheets.ts';
+export * from './doGet.generated.ts';
+export * from './sheets.ts';
+export * from './gmail.ts';
+export * from './index.exports.generated';
