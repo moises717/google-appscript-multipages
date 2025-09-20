@@ -46,6 +46,29 @@ npm install
 npm run build
 ```
 
+### ⚡ Compilación incremental por páginas
+
+El script `scripts/build-apps.mjs` soporta flags para acelerar el build:
+
+- `--pages=home,dashboard` compila solo esas páginas.
+- `--changed` compila únicamente páginas (y opcionalmente servidor) que hayan cambiado desde el último build (usa un cache en `dist/.build-cache.json`).
+- `--skip-server` salta la compilación del servidor (útil si solo cambiaste UI).
+
+Ejemplos (Windows cmd):
+
+```
+node scripts/build-apps.mjs --pages=home --skip-server
+node scripts/build-apps.mjs --changed
+node scripts/build-apps.mjs --changed --pages=dashboard
+```
+
+Con npm puedes pasar flags al script de build:
+
+```
+npm run build -- --changed
+npm run build -- --pages=home --skip-server
+```
+
 ## 🔧 Despliegue a Google Apps Script (clasp)
 
 1. Instala y autentica `clasp` si no lo tienes:
