@@ -418,5 +418,5 @@ async function saveCache(cache) {
 	console.log('\nBuild finished. Result files in /dist (list):');
 	const files = await fs.readdir(SERVER_DIR);
 	files.forEach((f) => console.log('  -', f));
-	console.log('\nAhora puedes ejecutar: clasp push (desde la carpeta dist) o configurar tu workflow.');
+	console.log('\nPuedes ejecutar: clasp push (desde la carpeta dist) o configurar tu workflow.');
 })();
