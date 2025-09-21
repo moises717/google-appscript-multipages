@@ -7,7 +7,7 @@ Este repo compila una app multipágina para Google Apps Script (GAS) usando Reac
 - Backend (GAS): funciones en `src/server/**`. El build genera:
   - `dist/Code.js` con las funciones Apps Script (IIFE a funciones planas).
   - `dist/<page>.html` (cada página React empaquetada como single-file HTML).
-  - Archivos generados: `src/server/doGet.generated.ts` y `src/server/pages.generated.ts`.
+  - Archivo generado: `src/server/doGet.generated.ts`.
 - Comunicación cliente-servidor: `gas-client` expone `serverFunctions` en el cliente y re-exporta funciones públicas desde `src/server/index.ts`.
 
 ## Flujo de build y deploy
@@ -36,7 +36,7 @@ Este repo compila una app multipágina para Google Apps Script (GAS) usando Reac
 
 ## Detalles del script de build (`scripts/build-apps.mjs`)
 - Descubre páginas en `src/client/pages/*` y genera single-file HTML con `vite-plugin-singlefile`.
-- Genera `pages.generated.ts` y `doGet.generated.ts` en `src/server/`.
+- Genera `doGet.generated.ts` en `src/server/`.
 - Compila el servidor a IIFE y lo transforma para Apps Script (extiende globalThis y elimina el wrapper).
 - Copia `appsscript.json` a `dist/` si existe.
 
