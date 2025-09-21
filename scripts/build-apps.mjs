@@ -156,17 +156,48 @@ async function buildServer() {
 	try {
 		let content = await fs.readFile(tmp, 'utf-8');
 
-		// Intento robusto: encontrar el IIFE principal mediante conteo de llaves, evitando dependencias AST
-		function extractIIFEBody(text) {
+		// Extraer el cuerpo del IIFE usando recast (si está disponible) para mayor robustez
+		async function extractWithRecast(text) {
+			try {
+				const recastMod = await import('recast');
+				const recastLib = recastMod.default ?? recastMod;
+				const parserMod = await import('recast/parsers/acorn');
+				const parserImpl = parserMod.default ?? parserMod;
+				const t = recastLib.types.namedTypes;
+				const ast = recastLib.parse(text, { parser: parserImpl });
+				let bodyNodes = null;
+				recastLib.types.visit(ast, {
+					visitCallExpression(path) {
+						const callee = path.node.callee;
+						if (t.FunctionExpression.check(callee) || t.ArrowFunctionExpression.check(callee)) {
+							if (t.BlockStatement.check(callee.body)) {
+								bodyNodes = callee.body.body;
+								return false; // stop traversal
+							}
+						}
+						this.traverse(path);
+					},
+				});
+				if (bodyNodes) {
+					const program = { type: 'Program', body: bodyNodes, sourceType: 'script' };
+					return recastLib.print(program).code;
+				}
+				return null;
+			} catch (e) {
+				return null;
+			}
+		}
+
+		let body = await extractWithRecast(content);
+		function extractByBraces(text) {
 			const iifePos = text.indexOf('(function');
 			if (iifePos === -1) return null;
-			// encontrar la primera llave '{' que abre la función
 			let openIdx = text.indexOf('{', iifePos);
 			if (openIdx === -1) return null;
-			let i = openIdx + 1;
-			let depth = 1;
-			let inString = null;
-			let escape = false;
+			let i = openIdx + 1,
+				depth = 1,
+				inString = null,
+				escape = false;
 			for (; i < text.length; i++) {
 				const ch = text[i];
 				if (inString) {
@@ -180,10 +211,6 @@ async function buildServer() {
 					}
 					if (ch === inString) {
 						inString = null;
-						continue;
-					}
-					if (ch === '\\' && inString === '`') {
-						escape = true;
 						continue;
 					}
 					continue;
@@ -206,8 +233,7 @@ async function buildServer() {
 			if (depth !== 0) return null;
 			return text.slice(openIdx + 1, i);
 		}
-
-		let body = extractIIFEBody(content);
+		if (!body) body = extractByBraces(content);
 		if (!body) {
 			// fallback a heurística anterior (use strict / last index)
 			const usIdx = content.indexOf('"use strict"');
@@ -218,8 +244,6 @@ async function buildServer() {
 		}
 
 		if (body != null) {
-			// retirar partes de módulos y publicaciones
-			// cortar desde el bucle de publicación si existe
 			const pubIdx = body.indexOf('for (const __mod of __modules)');
 			if (pubIdx >= 0) body = body.slice(0, pubIdx);
 
