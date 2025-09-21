@@ -1,5 +1,5 @@
-import { Button } from '../../components/ui/button';
-import { serverFunctions } from '../../lib/client';
+import { Button } from '@/client/components/ui/button';
+import { serverFunctions } from '@/client/lib/client';
 
 function App() {
 	async function send() {
