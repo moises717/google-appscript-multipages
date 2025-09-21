@@ -13,7 +13,7 @@ Proyecto para crear aplicaciones multipágina sobre Google Apps Script (GAS) uti
 
 - Generación automática del código servidor adaptado a Apps Script (`Code.js`).
 - Soporte de múltiples páginas; cada página se empaqueta como un HTML independiente y se coloca en `dist/` o `server/` según el build.
-- Generación dinámica de `doGet` y un manifiesto de páginas (`src/server/pages.generated.ts`, `src/server/doGet.generated.ts`).
+- Generación dinámica de `doGet` (`src/server/doGet.generated.ts`).
 - Flujo de build y deploy integrado: `npm run build` y opciones para `clasp push`.
 
 ## 📂 Estructura del proyecto (resumen)
