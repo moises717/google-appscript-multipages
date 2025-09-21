@@ -4,9 +4,10 @@ import { ChartAreaInteractive } from '@/client/components/chart-area-interactive
 import { SectionCards } from '@/client/components/section-cards';
 import { SiteHeader } from '@/client/components/site-header';
 import { SidebarInset, SidebarProvider } from '@/client/components/ui/sidebar';
-//import { DataTable } from '../../components/data-table';
+import { DataTable } from '@/client/components/data-table';
 import { serverFunctions } from '@/client/lib/client';
 import type { Account } from '@/client/types';
+import data from '@/client/data.json';
 
 function App() {
 	useEffect(() => {
@@ -36,7 +37,7 @@ function App() {
 							<div className='px-4 lg:px-6'>
 								<ChartAreaInteractive />
 							</div>
-							{/* <DataTable data={data} /> */}
+							<DataTable data={data} />
 						</div>
 					</div>
 				</div>
