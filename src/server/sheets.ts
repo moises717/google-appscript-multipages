@@ -19,8 +19,8 @@ export function sheetToJsonFromName<T extends object>(
 	if (!values || values.length === 0) return [];
 
 	// Encabezados (primera fila)
-	const rawHeaders = values[0].map(h => (h == null ? '' : String(h).trim()));
-	if (rawHeaders.every(h => typeof h !== 'string' || h.trim() === '')) {
+	const rawHeaders = values[0].map((h) => (h == null ? '' : String(h).trim()));
+	if (rawHeaders.every((h) => typeof h !== 'string' || h.trim() === '')) {
 		throw new Error('La fila de encabezados está vacía.');
 	}
 
@@ -36,7 +36,7 @@ export function sheetToJsonFromName<T extends object>(
 			.replace(/[^0-9a-zA-Z]+/g, ' ')
 			.trim()
 			.toLowerCase();
-		const parts = cleaned.split(/\s+/).filter(p => p.length > 0);
+		const parts = cleaned.split(/\s+/).filter((p) => p.length > 0);
 		if (parts.length === 0) return '';
 		let camel = parts.map((part, i) => (i === 0 ? part : part.charAt(0).toUpperCase() + part.slice(1))).join('');
 		// Si comienza con número, prefija con _
@@ -45,9 +45,9 @@ export function sheetToJsonFromName<T extends object>(
 	};
 
 	// Limpiar encabezados, convertir a camelCase y asegurar unicidad (añade _1, _2 si hace falta)
-	const headersRawCamel = rawHeaders.map(h => toCamelCase(String(h ?? '').trim()));
+	const headersRawCamel = rawHeaders.map((h) => toCamelCase(String(h ?? '').trim()));
 	const seen: Record<string, number> = {};
-	const headers = headersRawCamel.map(h => {
+	const headers = headersRawCamel.map((h) => {
 		if (!h) return ''; // dejamos vacío (luego se salta)
 		if (seen[h] === undefined) {
 			seen[h] = 0;
@@ -67,7 +67,7 @@ export function sheetToJsonFromName<T extends object>(
 	// Recorremos filas (desde la 2ª fila)
 	for (let r = 1; r < values.length; r++) {
 		const row = values[r] as any[];
-		const rowHasAny = row.some(cell => cell !== '' && cell !== null && cell !== undefined);
+		const rowHasAny = row.some((cell) => cell !== '' && cell !== null && cell !== undefined);
 		if (!rowHasAny) continue;
 
 		const obj = {} as T;
@@ -100,7 +100,7 @@ export function sheetToJsonFromName<T extends object>(
 			}
 		}
 
-		const hasValue = Object.keys(obj).some(k => {
+		const hasValue = Object.keys(obj).some((k) => {
 			const v = (obj as any)[k];
 			return v !== undefined && v !== '' && v !== null;
 		});
