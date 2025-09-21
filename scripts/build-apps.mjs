@@ -162,7 +162,6 @@ async function buildServer() {
 				const swcMod = await import('@swc/core');
 				const swc = swcMod.default ?? swcMod;
 				const parse = swc.parseSync ? (code, opts) => swc.parseSync(code, opts) : (code, opts) => swc.parse(code, opts);
-				// Parseamos como Script porque el bundle es IIFE (no módulo)
 				const ast = parse(text, {
 					jsc: { target: 'es2022' },
 					syntax: 'ecmascript',
