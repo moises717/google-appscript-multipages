@@ -156,39 +156,57 @@ async function buildServer() {
 	try {
 		let content = await fs.readFile(tmp, 'utf-8');
 
-		// Extraer el cuerpo del IIFE usando recast (si está disponible) para mayor robustez
-		async function extractWithRecast(text) {
+		// Extraer el cuerpo del IIFE usando SWC (rápido) con fallback por llaves
+		async function extractWithSwc(text) {
 			try {
-				const recastMod = await import('recast');
-				const recastLib = recastMod.default ?? recastMod;
-				const parserMod = await import('recast/parsers/acorn');
-				const parserImpl = parserMod.default ?? parserMod;
-				const t = recastLib.types.namedTypes;
-				const ast = recastLib.parse(text, { parser: parserImpl });
-				let bodyNodes = null;
-				recastLib.types.visit(ast, {
-					visitCallExpression(path) {
-						const callee = path.node.callee;
-						if (t.FunctionExpression.check(callee) || t.ArrowFunctionExpression.check(callee)) {
-							if (t.BlockStatement.check(callee.body)) {
-								bodyNodes = callee.body.body;
-								return false; // stop traversal
-							}
-						}
-						this.traverse(path);
-					},
+				const swcMod = await import('@swc/core');
+				const swc = swcMod.default ?? swcMod;
+				const parse = swc.parseSync ? (code, opts) => swc.parseSync(code, opts) : (code, opts) => swc.parse(code, opts);
+				// Parseamos como Script porque el bundle es IIFE (no módulo)
+				const ast = parse(text, {
+					jsc: { target: 'es2022' },
+					syntax: 'ecmascript',
+					isModule: false,
+					comments: false,
 				});
-				if (bodyNodes) {
-					const program = { type: 'Program', body: bodyNodes, sourceType: 'script' };
-					return recastLib.print(program).code;
+
+				function getBlockFromCallee(callee) {
+					if (!callee) return null;
+					if (callee.type === 'FunctionExpression' && callee.body && callee.body.type === 'BlockStatement') {
+						return callee.body;
+					}
+					if (callee.type === 'ArrowFunctionExpression' && callee.body && callee.body.type === 'BlockStatement') {
+						return callee.body;
+					}
+					if (callee.type === 'ParenExpression') {
+						return getBlockFromCallee(callee.expression);
+					}
+					return null;
 				}
-				return null;
+
+				let block = null;
+				const body = ast.body || [];
+				for (const stmt of body) {
+					if (stmt.type === 'ExpressionStatement' && stmt.expression && stmt.expression.type === 'CallExpression') {
+						block = getBlockFromCallee(stmt.expression.callee);
+						if (block) break;
+					}
+				}
+				if (!block || !block.span) return null;
+				const start = block.span.start; // incluye '{'
+				const end = block.span.end; // incluye '}'
+				let slice = text.slice(start, end);
+				// Retirar llaves externas si existen
+				if (slice.startsWith('{') && slice.endsWith('}')) {
+					slice = slice.slice(1, -1);
+				}
+				return slice;
 			} catch (e) {
 				return null;
 			}
 		}
 
-		let body = await extractWithRecast(content);
+		let body = await extractWithSwc(content);
 		function extractByBraces(text) {
 			const iifePos = text.indexOf('(function');
 			if (iifePos === -1) return null;
@@ -272,7 +290,7 @@ async function buildServer() {
 
 			functionsOnly = functionsOnly.trim() + '\n';
 			await fs.writeFile(dest, functionsOnly, 'utf-8');
-			console.log('  -> dist/Code.js created (brace-extracted transform for Apps Script)');
+			console.log('  -> dist/Code.js created (Apps Script transform)');
 		} else {
 			console.warn('Could not transform server code, writing original. It may not work in Apps Script.');
 			await fs.copyFile(tmp, dest);
