@@ -555,6 +555,8 @@ async function saveCache(cache) {
 	// asegurar estructura para nuevas claves
 	cache.pages = cache.pages || {};
 	cache.templates = cache.templates || {};
+	// set para recolectar templates actuales y poder depurar huérfanos
+	const currentTemplateKeys = new Set();
 	if (!SKIP_SERVER) {
 		const newServerHash = await computeServerHash();
 		const hasServerChanged = cache.server !== newServerHash;
@@ -622,6 +624,7 @@ async function saveCache(cache) {
 				destBaseName = `${nameNoExt}.template`;
 			}
 			if (!destBaseName) continue;
+			currentTemplateKeys.add(destBaseName);
 			const destFile = resolve(SERVER_DIR, `${destBaseName}.html`);
 
 			let shouldCopy = true;
@@ -647,6 +650,35 @@ async function saveCache(cache) {
 	} catch (e) {
 		console.warn('Warning copying extra HTML templates:', e?.message || e);
 	}
+
+	// Limpieza: eliminar HTMLs de páginas eliminadas
+	try {
+		const currentPageNames = new Set(allEntries.map((e) => e.name));
+		for (const name of Object.keys(cache.pages || {})) {
+			if (!currentPageNames.has(name)) {
+				const f = resolve(SERVER_DIR, `${name}.html`);
+				try {
+					await fs.unlink(f);
+					console.log(`  -> dist/${name}.html removed (page deleted)`);
+				} catch {}
+				delete cache.pages[name];
+			}
+		}
+	} catch {}
+
+	// Limpieza: eliminar HTMLs de plantillas eliminadas
+	try {
+		for (const key of Object.keys(cache.templates || {})) {
+			if (!currentTemplateKeys.has(key)) {
+				const f = resolve(SERVER_DIR, `${key}.html`);
+				try {
+					await fs.unlink(f);
+					console.log(`  -> dist/${key}.html removed (template deleted)`);
+				} catch {}
+				delete cache.templates[key];
+			}
+		}
+	} catch {}
 
 	// 3) Copiar appsscript.json (si tienes una plantilla local)
 	const appsscriptSrc = resolve(PROJECT_ROOT, 'appsscript.json');
