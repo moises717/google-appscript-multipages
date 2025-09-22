@@ -1,6 +1,6 @@
 import { build as viteBuild } from 'vite';
 import { viteSingleFile } from 'vite-plugin-singlefile';
-import { resolve, dirname } from 'path';
+import { resolve, dirname, relative, basename } from 'path';
 import { createHash } from 'node:crypto';
 import fs from 'fs/promises';
 import { existsSync } from 'fs';
@@ -552,6 +552,9 @@ async function saveCache(cache) {
 
 	// Build server con cache si no se pasa --skip-server
 	const cache = await loadCache();
+	// asegurar estructura para nuevas claves
+	cache.pages = cache.pages || {};
+	cache.templates = cache.templates || {};
 	if (!SKIP_SERVER) {
 		const newServerHash = await computeServerHash();
 		const hasServerChanged = cache.server !== newServerHash;
@@ -597,6 +600,52 @@ async function saveCache(cache) {
 		for (const entry of pagesToBuild) {
 			await buildClientSingleFile(entry);
 		}
+	}
+
+	// Copiar HTMLs arbitrarios (no-index) como plantillas para Apps Script
+	try {
+		const pagesRoot = resolve(PROJECT_ROOT, 'src/client/pages');
+		const allFiles = await walkFiles(pagesRoot);
+		const htmlFiles = allFiles.filter((f) => f.toLowerCase().endsWith('.html'));
+		const extraHtmls = htmlFiles.filter((f) => basename(f).toLowerCase() !== 'index.html');
+		const pageNameSet = new Set(allEntries.map((e) => e.name));
+
+		for (const srcFile of extraHtmls) {
+			const relPath = relative(pagesRoot, srcFile).split('\\').join('/');
+			const segments = relPath.split('/');
+			const file = segments.pop() || '';
+			const nameNoExt = file.replace(/\.html$/i, '');
+			let destBaseName = [...segments, nameNoExt].join('.');
+			// Evitar colisión con páginas build (p.ej., src/client/pages/about.html vs carpeta page "about")
+			// Si el archivo está en la raíz de pages/ (sin subcarpeta) y coincide con un nombre de página, renombrar con sufijo .template
+			if (segments.length === 0 && pageNameSet.has(nameNoExt)) {
+				destBaseName = `${nameNoExt}.template`;
+			}
+			if (!destBaseName) continue;
+			const destFile = resolve(SERVER_DIR, `${destBaseName}.html`);
+
+			let shouldCopy = true;
+			let fileHash = '';
+			try {
+				fileHash = await hashFiles([srcFile]);
+			} catch {}
+			if (ONLY_CHANGED) {
+				const prev = cache.templates?.[destBaseName];
+				if (prev && prev === fileHash && existsSync(destFile)) {
+					shouldCopy = false;
+				}
+			}
+			if (shouldCopy) {
+				const content = await fs.readFile(srcFile, 'utf-8');
+				await ensureServerDir();
+				await fs.writeFile(destFile, content, 'utf-8');
+				cache.templates = cache.templates || {};
+				cache.templates[destBaseName] = fileHash || (await hashFiles([srcFile]));
+				console.log(`  -> dist/${destBaseName}.html copied (template from ${relPath})`);
+			}
+		}
+	} catch (e) {
+		console.warn('Warning copying extra HTML templates:', e?.message || e);
 	}
 
 	// 3) Copiar appsscript.json (si tienes una plantilla local)
