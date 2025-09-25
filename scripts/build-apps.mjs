@@ -220,8 +220,8 @@ async function buildServer() {
 				.replace(/\n?\s*(?:var|const|let)\s+__modules\s*=\s*\[[\s\S]*?\];\s*/g, '')
 				// eliminar loop de publicación a globalThis
 				.replace(/for\s*\(const\s+__mod\s+of\s+__modules\)[\s\S]*$/g, '')
-				// eliminar catch vacíos
-				.replace(/\bcatch\s*\(.*?\)\s*\{\s*\}\s*/g, '')
+				// Importante: NO eliminar catch vacíos. Si los quitamos, dejaríamos un try sin
+				// catch/finally y se produce un error de sintaxis. Mantenerlos es seguro.
 				// eliminar 'use strict'
 				.replace(/^(?:\s*'use strict'|\s*"use strict");?/m, '')
 				// eliminar asignaciones a exports.NAME (no queremos exponerlas en Apps Script)
@@ -231,6 +231,43 @@ async function buildServer() {
 				// eliminar exports.__esModule = true
 				.replace(/(^|\n)\s*exports\.__esModule\s*=\s*true;?/g, '')
 				.trim();
+
+			// Validación de sintaxis: parsear con SWC para detectar retornos ilegales u otros errores.
+			async function validateSyntaxOrDie(code, label) {
+				try {
+					let swcMod;
+					try {
+						swcMod = await import('@swc/core');
+					} catch (e) {
+						// Si no está disponible @swc/core, omitir validación pero continuar el build.
+						const msg = e?.message || String(e);
+						if (msg.includes('Cannot find module') || msg.includes('MODULE_NOT_FOUND')) {
+							console.warn('Warning: @swc/core no está instalado; se omite la validación de sintaxis.');
+							return true;
+						}
+						throw e;
+					}
+					const swc = swcMod.default ?? swcMod;
+					const parse = swc.parseSync ? (c, o) => swc.parseSync(c, o) : (c, o) => swc.parse(c, o);
+					parse(code, {
+						jsc: { target: 'es2022' },
+						syntax: 'ecmascript',
+						isModule: false,
+						comments: false,
+					});
+					return true;
+				} catch (err) {
+					try {
+						await fs.writeFile(resolve(SERVER_DIR, 'Code.invalid.js'), code, 'utf-8');
+					} catch {}
+					console.error(`\n❌ Syntax error while transforming ${label}.`);
+					console.error('   Message:', err?.message || String(err));
+					console.error('   A copy of the invalid output was saved as dist/Code.invalid.js for inspection.');
+					process.exit(1);
+				}
+			}
+
+			await validateSyntaxOrDie(functionsOnly, 'server Code.js');
 
 			// Not exposing top-level functions via globalThis is intentional: Apps Script
 			// will pick up top-level function declarations (e.g. function doGet) automatically.
