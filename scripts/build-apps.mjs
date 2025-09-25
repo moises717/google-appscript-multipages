@@ -558,6 +558,40 @@ async function saveCache(cache) {
 	} catch {}
 }
 
+// Ejecuta trabajos en paralelo con un límite de concurrencia pequeño
+async function runWithConcurrency(items, limit, worker) {
+	const queue = items.slice();
+	let active = 0;
+	let ended = false;
+	return new Promise((resolve, reject) => {
+		const next = () => {
+			if (ended) return;
+			const item = queue.shift();
+			if (item == null) {
+				if (active === 0) {
+					ended = true;
+					resolve();
+				}
+				return;
+			}
+			active++;
+			Promise.resolve()
+				.then(() => worker(item))
+				.then(() => {
+					active--;
+					next();
+				})
+				.catch((err) => {
+					ended = true;
+					reject(err);
+				});
+		};
+		const starters = Math.min(limit, queue.length || 0);
+		if (starters === 0) return resolve();
+		for (let i = 0; i < starters; i++) next();
+	});
+}
+
 (async () => {
 	console.log('Starting Apps Script build (server + single-file clients)...');
 
@@ -636,9 +670,9 @@ async function saveCache(cache) {
 	if (pagesToBuild.length === 0) {
 		console.log('No pages to build (either filtered by --pages or unchanged with --changed).');
 	} else {
-		for (const entry of pagesToBuild) {
-			await buildClientSingleFile(entry);
-		}
+		const CONCURRENCY = 3;
+		console.log(`Building ${pagesToBuild.length} page(s) with concurrency=${CONCURRENCY} ...`);
+		await runWithConcurrency(pagesToBuild, CONCURRENCY, (entry) => buildClientSingleFile(entry));
 	}
 
 	// Copiar HTMLs arbitrarios (no-index) como plantillas para Apps Script
